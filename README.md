@@ -34,7 +34,7 @@ Built with Python, FastAPI, Streamlit, and NLP techniques.
 
 ## Architecture
 
-```text
+
                   User
                    |
                    v
@@ -81,7 +81,7 @@ Built with Python, FastAPI, Streamlit, and NLP techniques.
           +------------------+
           | Results Dashboard|
           +------------------+
-```
+
 
 The backend handles all resume analysis and scoring. The frontend communicates with the backend through HTTP requests.
 
