@@ -35,39 +35,39 @@ Built with Python, FastAPI, Streamlit, and NLP techniques.
 ## Architecture
 
 
-                 [ User ]
-   │
-   ▼
-[ Streamlit UI ]
-  ├─ Resume Upload
-  └─ Job Description
-   │
-   │ HTTP
-   ▼
-[ FastAPI API ]
-  └─ Input Validation
-   │
-   ▼
-[ Resume Parser ]
-  ├─ PDF
-  └─ DOCX
-   │
-   ▼
-[ NLP Analysis ]
-  ├─ Skill Extraction
-  ├─ Keyword Matching
-  └─ Semantic Analysis
-   │
-   ▼
-[ Scoring Engine ]
-  ├─ Compatibility
-  └─ Evidence Analysis
-   │
-   ▼
-[ Recommendations ]
-   │
-   ▼
-[ Results Dashboard ]
+ # Resume Analysis Architecture
+
+This system processes a user's resume against a specific job description to generate compatibility scores and actionable recommendations. The architecture is divided into four main layers:
+
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+    User((User)) --> UI
+    
+    subgraph Client Layer
+        UI[Streamlit UI]
+    end
+    
+    subgraph API Layer
+        API[FastAPI Server]
+    end
+    
+    subgraph Processing Engine
+        Parser[Resume Parser]
+        NLP[NLP Analysis]
+        Scoring[Scoring Engine]
+    end
+    
+    subgraph Output
+        Dash[Results Dashboard]
+    end
+
+    UI -- HTTP POST --> API
+    API --> Parser
+    Parser --> NLP
+    NLP --> Scoring
+    Scoring --> Dash
 
 
 The backend handles all resume analysis and scoring. The frontend communicates with the backend through HTTP requests.
