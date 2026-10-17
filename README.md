@@ -1,114 +1,250 @@
 # ATS Resume Scanner
 
-Compares a resume (PDF/DOCX) with a job description and returns matched and missing skills, evidence
-snippets, an **explainable** compatibility score and truthful improvement suggestions.
+An NLP-powered ATS Resume Scanner that compares resumes against job descriptions, identifies matching and missing skills, calculates an explainable compatibility score, and generates actionable resume improvement suggestions.
 
-> The score is a heuristic text-overlap measure for self-review. It is **not** an official ATS score, a
-> hiring probability, or a validated prediction. Weights and the similarity scaling are not calibrated
-> against hiring outcomes.
+Built with Python, FastAPI, Streamlit, and NLP techniques.
+
+## Features
+
+- **Resume Parsing:** Extract text from PDF and DOCX resumes.
+- **Skill Extraction:** Identify relevant technical skills using a curated skill taxonomy.
+- **Keyword Matching:** Detect exact, related, and missing skills.
+- **Semantic Similarity:** Compare resume content with job descriptions using TF-IDF and cosine similarity.
+- **Explainable Scoring:** Calculate a compatibility score using skill coverage, text similarity, and contextual evidence.
+- **Evidence-Based Analysis:** Display resume snippets supporting identified skill matches.
+- **Improvement Recommendations:** Suggest truthful, actionable ways to improve resume alignment.
+- **Input Validation:** Handle unsupported files, malformed documents, and oversized uploads.
+- **REST API:** Expose resume analysis through FastAPI.
+- **Interactive Dashboard:** Present analysis results through Streamlit.
+
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Programming Language | Python |
+| Frontend | Streamlit |
+| Backend | FastAPI |
+| NLP | scikit-learn |
+| Text Similarity | TF-IDF and Cosine Similarity |
+| Document Processing | PyMuPDF, python-docx |
+| Database | SQLite, where persistence is required |
+| API Testing | HTTPX |
+| Automated Testing | Pytest |
+| Deployment | Streamlit Community Cloud or another compatible hosting platform |
 
 ## Architecture
 
+```text
+                  User
+                   |
+                   v
+          +------------------+
+          |  Streamlit UI    |
+          | Resume Upload    |
+          | Job Description  |
+          +------------------+
+                   |
+                   | HTTP
+                   v
+          +------------------+
+          |   FastAPI API    |
+          | Input Validation |
+          +------------------+
+                   |
+                   v
+          +------------------+
+          | Resume Parser    |
+          | PDF / DOCX       |
+          +------------------+
+                   |
+                   v
+          +------------------+
+          | NLP Analysis     |
+          | Skill Extraction |
+          | Keyword Matching|
+          | Semantic Analysis|
+          +------------------+
+                   |
+                   v
+          +------------------+
+          | Scoring Engine   |
+          | Compatibility    |
+          | Evidence Analysis|
+          +------------------+
+                   |
+                   v
+          +------------------+
+          | Recommendations  |
+          +------------------+
+                   |
+                   v
+          +------------------+
+          | Results Dashboard|
+          +------------------+
 ```
-User → Streamlit (app/frontend.py) ──HTTP──▶ FastAPI (app/main.py, app/api/routes.py)
-                                                └─ services/pipeline.py
-                                                     resume_parser → job_analyzer → skill_matcher (taxonomy)
-                                                     → semantic_analyzer → scoring_engine → recommender
-```
 
-The frontend contains no analysis logic; the backend is the single source of truth. If `ATS_API_URL` is
-unset, the frontend starts the backend itself on `127.0.0.1` (single-deployment mode), so only the Streamlit
-port is public.
+The backend handles all resume analysis and scoring. The frontend communicates with the backend through HTTP requests.
 
-## Features
-- PDF/DOCX upload with extension, MIME, magic-byte, size (default 5 MB), page-count and decompressed-size checks;
-  empty, malformed, encrypted and scanned (no text layer) files are rejected with clear messages (no OCR).
-- Skill taxonomy (`app/data/skills.json`, ~125 skills) with aliases, boundary-aware matching (no `Java`⊂`JavaScript`,
-  `SQL`⊂`NoSQL`), case-sensitive ambiguous aliases (`ML`, `Swift`, …) and skill *families*.
-- Job-description analysis: required vs preferred (headers and inline cues such as "nice to have", "a plus"),
-  experience and qualification lines (shown, not scored).
-- **Exact** vs **related** (same family, partial credit) vs **missing**, with resume evidence snippets and whether
-  a skill is shown in context or only in a skills list.
-- TF-IDF cosine similarity (default); optional sentence-embedding backend behind the same interface.
-- Recommendations that never suggest adding skills you do not have.
+## How It Works
 
-## Scoring
-`overall = 100 × Σ(wᵢ·vᵢ) ÷ Σ(wᵢ)` over the components that are available (weights renormalised if one is missing).
+1. Upload a resume in PDF or DOCX format.
+2. Enter the target job description.
+3. Extract and preprocess resume text.
+4. Identify relevant skills and job requirements.
+5. Compare resume skills with the job description.
+6. Calculate skill coverage and text similarity.
+7. Generate a compatibility score and explain the results.
+8. Display matched skills, missing skills, evidence, and recommendations.
 
-| Component | Default weight | Value |
+## Scoring Methodology
+
+The scanner calculates an overall compatibility score using a weighted combination of available components:
+
+- **Skill Coverage:** Measures how well the resume covers relevant job requirements.
+- **Text Similarity:** Measures textual similarity between the resume and job description.
+- **Contextual Evidence:** Evaluates whether matched skills appear in meaningful resume content rather than only in a skills list.
+
+Exact matches receive full credit, related skills receive partial credit, and missing skills receive no credit for that requirement.
+
+The component weights and matching rules are configurable.
+
+**Important:** The resulting score is a heuristic compatibility estimate. It is not an official ATS score, a hiring probability, or a validated prediction of recruitment outcomes.
+
+## API Endpoints
+
+| Method | Endpoint | Description |
 |---|---|---|
-| Skill coverage | 0.60 | Σ(importance × credit) ÷ Σ(importance); exact = 1, related = 0.5, missing = 0; importance: required 1.0, unspecified 0.75, preferred 0.5 |
-| Text similarity | 0.25 | TF-IDF cosine ÷ 0.45, capped at 1 (the 0.45 saturation is a heuristic, not calibrated) |
-| Evidence in context | 0.15 | Share of exactly matched skills (importance-weighted) found outside a skills list |
+| GET | `/health` | Check backend health |
+| POST | `/analyze` | Analyze a resume against a job description |
+| GET | `/docs` | Access interactive API documentation |
 
-If the job description has no recognised skills, skill coverage and evidence are unavailable and the score
-reflects text similarity only (a warning is returned). All weights are configurable (below).
+### Example API Request
 
-## Local setup
 ```bash
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+curl -X POST http://127.0.0.1:8000/analyze \
+  -F "file=@resume.pdf" \
+  -F "job_description=Python developer with SQL and NLP experience"
+```
+
+The analysis endpoint returns structured results containing the compatibility score, matched skills, related skills, missing skills, recommendations, and relevant warnings.
+
+## Installation and Setup
+
+### Prerequisites
+
+- Python 3.10 or later
+- Git
+- pip
+
+### 1. Clone the Repository
+
+```bash
+git clone <your-repository-url>
+cd ats-resume-scanner
+```
+
+Replace `<your-repository-url>` with your actual GitHub repository URL.
+
+### 2. Create a Virtual Environment
+
+Linux/macOS:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Windows:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install Dependencies
+
+```bash
 pip install -r requirements-dev.txt
-cp .env.example .env                                   # optional
-streamlit run app/frontend.py                          # UI; starts the backend automatically
-# or run the backend alone (OpenAPI docs at http://127.0.0.1:8000/docs):
-uvicorn app.main:app --port 8000
-# separate frontend/backend:   ATS_API_URL=http://127.0.0.1:8000 streamlit run app/frontend.py
 ```
-Developed and tested on Python 3.12 (Linux). The frontend uses 3.10+ syntax.
 
-## Environment variables (prefix `ATS_`, see `.env.example`)
-`MAX_UPLOAD_MB` (5), `MAX_PDF_PAGES` (15), `MAX_JD_CHARS` (20000), `SEMANTIC_BACKEND` (`tfidf`|`embeddings`),
-`WEIGHT_SKILLS/SEMANTIC/EVIDENCE`, `WEIGHT_REQUIRED/PREFERRED/UNSPECIFIED`, `RELATED_CREDIT`,
-`TFIDF_SATURATION`, `API_URL` (frontend only). Streamlit's own upload cap is set in `.streamlit/config.toml`.
+### 4. Run the Application
 
-## API
-Interactive docs: `/docs` (Swagger) and `/openapi.json`.
-- `GET /health` → `{status, version, semantic_backend, max_upload_mb}`
-- `POST /analyze` (multipart: `file` = PDF/DOCX, `job_description` = text) → score breakdown, `matched_skills`,
-  `related_skills`, `missing_skills`, `recommendations`, `job_summary`, `warnings`, `meta`.
-  Errors return `{"detail": "..."}`: **413** too large, **415** unsupported type, **422** missing/blank job description,
-  empty/malformed/encrypted/scanned file, **500** unexpected (generic message).
 ```bash
-curl -F "file=@resume.pdf" -F "job_description=<jd.txt" http://127.0.0.1:8000/analyze
+streamlit run app/frontend.py
 ```
+
+If the application is configured for single-deployment mode, the frontend starts the local FastAPI backend automatically.
+
+Alternatively, start the backend separately:
+
+```bash
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Then open the API documentation at:
+
+http://127.0.0.1:8000/docs
 
 ## Testing
+
+Run the automated test suite:
+
 ```bash
-pip install -r requirements-dev.txt && python -m pytest tests -q
+python -m pytest tests -q
 ```
-Tests use synthetic resumes only (generated in `tests/conftest.py`). The optional embedding backend's model path is
-not covered (needs a model download); only its fallback-to-TF-IDF behaviour is tested.
+
+The tests should cover document parsing, input validation, skill matching, scoring behavior, API responses, and error handling.
 
 ## Deployment
-Limits below were checked against the providers' docs on 2026-10-17 and can change.
 
-**Recommended: Streamlit Community Cloud (single deployment, free).** Docs list 690 MB minimum / 2.7 GB maximum memory and
-sleep after 12 hours without traffic. Measured here: backend ≈ 230 MB, idle Streamlit ≈ 55 MB, so the app should fit.
-1. Push this folder to a GitHub repository (requires a GitHub account; a public repo is simplest).
-2. At share.streamlit.io choose **Create app**, select the repo/branch, main file `app/frontend.py`.
-3. Advanced settings → Python 3.12. No secrets are required.
-4. Deploy, then run a real upload through the public URL (not yet done for this project).
-The first request after sleep restarts the app and its backend subprocess (cold start). Whether Community Cloud
-permits the frontend's backend subprocess has **not** been verified; if it does not, use option 2 or host the
-backend separately and set `ATS_API_URL`.
+The application can be deployed using a compatible Python hosting platform.
 
-**Fallback: Render (Docker, free).** `Dockerfile` + `render.yaml` are provided (New → Blueprint). Free instances have
-512 MB RAM / 0.1 CPU, spin down after 15 minutes idle and take about a minute to wake; this app may be tight on
-memory and slow on 0.1 CPU. The Docker image has not been built in this environment.
+### Streamlit Community Cloud
 
-## Privacy and security
-- Uploads are parsed in memory; the app does not store resumes and logs only metadata (type, size, counts, timing),
-  never content. Starlette may buffer uploads over 1 MB in a temporary file for the duration of the request.
-- The hosting platform can keep its own request logs; do not upload anything you would not share with the host.
-- No secrets are needed or committed. In single-deployment mode the API listens on `127.0.0.1` only.
-- No authentication or rate limiting: a public instance can be used by anyone and consumes CPU per request.
+1. Push the project to GitHub.
+2. Open [Streamlit Community Cloud](https://share.streamlit.io/).
+3. Create a new application.
+4. Select the repository and branch.
+5. Set the main file to `app/frontend.py`.
+6. Configure the supported Python version.
+7. Deploy and test the public application.
 
-## Known limitations
-- Only skills in the taxonomy are detected; add entries to `app/data/skills.json` (duplicate aliases fail fast on load).
-- No negation, recency or proficiency detection ("no Docker experience" still matches Docker).
-- "Related" uses coarse families (e.g. PostgreSQL ↔ SQL ↔ MySQL earn partial credit, not full).
-- Ambiguous capitalised words at sentence start (Swift, Rust, Ruby, Dart, Excel, Spark) can false-match.
-- Required/preferred detection relies on English headers/cues; unusual layouts fall back to "unspecified".
-- Multi-column PDFs may extract out of order; DOCX text boxes and headers/footers are not read; scanned PDFs need OCR (unsupported).
-- The embedding backend (`requirements-embeddings.txt`, `ATS_SEMANTIC_BACKEND=embeddings`) is implemented but was not
-  evaluated or run end-to-end here; whether it improves results enough to justify its memory/startup cost is unknown.
+Before deployment, verify that the hosting environment supports the application's backend startup process and resource requirements.
+
+Deployment is not considered complete until the public application has been tested successfully.
+
+## Privacy and Security
+
+- Validate uploaded documents before processing.
+- Avoid logging resume contents.
+- Minimize retention of uploaded files.
+- Keep credentials out of source control.
+- Handle malformed documents safely.
+- Consider authentication and rate limiting before exposing the application to substantial public traffic.
+
+Resumes contain personal information. Users should avoid uploading documents they are not comfortable processing on the selected hosting platform.
+
+## Limitations
+
+- Skill detection depends on the available skill taxonomy.
+- Related-skill matching may award partial credit to skills that are not fully interchangeable.
+- Scanned PDFs require OCR, which may not be supported.
+- Complex document layouts can affect text extraction.
+- Keyword matching may miss context, negation, or proficiency levels.
+- Text similarity does not establish actual candidate suitability.
+- The scoring methodology has not been calibrated against real hiring outcomes.
+
+## Future Improvements
+
+- OCR support for scanned resumes.
+- Improved contextual skill extraction.
+- More robust detection of experience and proficiency.
+- Expanded skill taxonomy.
+- Resume comparison across multiple job descriptions.
+- Downloadable analysis reports.
+- Performance and scoring evaluation using a labeled test dataset.
+- Authentication and rate limiting for public deployment.
+
+## Disclaimer
+
+This project is intended for educational purposes and resume self-assessment. Its scores and recommendations should not be treated as definitive measures of candidate quality or hiring suitability.
